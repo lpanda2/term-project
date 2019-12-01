@@ -89,7 +89,7 @@ def make_clean_charts_data(chartevents, d_items, label):
     f'charts data shape: {charts.shape}'
     
     if (charts._d_items != 'both').any():
-        print('merge statistics')
+        printer('\nmerge statistics')
         print(charts._d_items.value_counts())
 
     # convert time fields to datetime
@@ -155,7 +155,7 @@ def create_contrast_imaging_feature(cptevents):
         '70548'
     ] # codes with contrast from 2019 (i know it's not the right year)
 
-    res['ft_contrast_imaging'] = res.cpt_cd.isin(radiology_cpt_codes)*1
+    res['ft_contrast_imaging'] = res['cpt_cd'].isin(radiology_cpt_codes) * 1
     return res.groupby('hadm_id', as_index=False)['ft_contrast_imaging'].max()
 
 
@@ -197,12 +197,15 @@ def add_nephrotoxin_features(prescriptions, admissions):
 
     # groups of drugs
     for group, drugs in meds_list.items():
+        print('\t', group)
         drug = pd.Series([False for i in range(len(res))])
         for med in drugs:
+            print('\t\t', med)
             this_drug = res.drug.str.lower().str.contains(med, na=False)
             drug |= this_drug        # add to the large list
             res[f'ft_nephrotoxin_{med}_rx'] = this_drug*1  # make its own feature
             for hr in [24, 48, 72]:
+                print('\t\t ', hr)
                 res[f'ft_nephrotoxin_{med}_rx_within_{hr}'] = (this_drug & within_x_hours(res, hr))*1
 
         # any drug in the group
@@ -486,7 +489,8 @@ def create_creatinine_features(charts, test=False):
 def create_urine_features(charts):
     """ features of urine color and appearance"""
     res = charts.loc[charts.label.str.lower().str.contains('urine', na=False), 
-               ['hadm_id', 'eventtime', 'admittime', 'label', 'value', 'valuenum', 'unitname']]
+               ['hadm_id', 'eventtime', 'admittime', 'label',
+                'value', 'valuenum', 'unitname']]
 
     # clean the label column
     res['label'] = res.label.str.replace('[', '').str.replace(']', '')
@@ -501,11 +505,18 @@ def create_urine_features(charts):
     # urine appearance
     label = 'Urine Appearance'
     appearance = res.loc[res.label == label]
-    appearance = pd.concat([appearance.hadm_id, pd.get_dummies(appearance.value.str.lower(), 
-                                                           prefix=('ft' + label.lower().replace(' ', '_')))],
+    appearance = pd.concat([appearance.hadm_id,
+                            pd.get_dummies(appearance.value.str.lower(), 
+                                prefix=('ft' + label.lower().replace(' ', '_')))],
                   axis=1)
-    
-    data = color.merge(appearance, how='left', on='hadm_id')
+
+    del res
+
+    data = color.merge(appearance, how='outer', on='hadm_id')
+
+    del appearance
+    del color
+
     data = data.groupby('hadm_id', as_index=False)[[x for x in data if 'ft_' in x]].max()
     return data
 
@@ -515,7 +526,9 @@ def merge_features(feature_list):
     return functools.reduce(lambda x,y: pd.merge(x,y, how='outer', on='hadm_id'), feature_list)
 
 def read_charts_data(bin_id):
-    return pd.read_csv(f'split-data/chartevents/bin_{bin_id}.csv', dtype=str)
+    return pd.read_csv(f'split-data/chartevents/bin_{bin_id}.csv',
+                       dtype=str,
+                       nrows=10**6)
 
 
 def charts_data_wrapper(bin_id, d_items, df, demographic_features):
@@ -527,18 +540,26 @@ def charts_data_wrapper(bin_id, d_items, df, demographic_features):
 
     printer('creatinine features')
     creatinine_features = create_creatinine_features(charts)
-    printer('urine features')
-    urine_features = create_urine_features(charts)
+    print(creatinine_features.shape)
+
+    # printer('urine features')
+    # urine_features = create_urine_features(charts)
+
     printer('hematocrit features')
     hematocrit_features = create_hematocrit_features(charts, demographic_features)
+    print(hematocrit_features.shape)
+
     printer('hypertensive features')
     hypertensive_features = create_hypertensive_features(charts)
+    print(hypertensive_features.shape)
+    
     printer('blood ph features')
     blood_ph_features = create_blood_ph_features(charts)
+    print(blood_ph_features.shape)
 
     return merge_features([
         creatinine_features,
-        urine_features,
+        # urine_features,
         hematocrit_features,
         hypertensive_features,
         blood_ph_features])
