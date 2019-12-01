@@ -4,6 +4,7 @@ This data science project predicts an Acute Kidney Injury (AKI) in patients admi
 ### File Structure
 The code and the data are located in the same directory. The [demo data](https://physionet.org/content/mimiciii-demo/1.4/) is in a demo-data/ folder on my local and the [full data files](https://physionet.org/content/mimiciii/1.4/) are located there as well. The following ipython notebooks do a bunch of different things, splitting some data which was too big for memory and feature engineering/exploration. Each jupyter notebook has its own section below.
 
+```
 term-project/
     ├── data/   (not committed)
     │   ├── data-file-1...
@@ -17,8 +18,9 @@ term-project/
     ├── dev_feature_engineering.ipynb (1)
     ├── feature_engineering_utilities.py (2)
     ├── split_charts_data.ipynb (3)
-├── prod_feature_engineering.ipynb (4)
-└── readme.md
+    ├── prod_feature_engineering.ipynb (4)
+    └── readme.md
+```
 
 ### Feature Engineering (dev_feature_engineering.ipynb)
 In order to do the feature engineering
