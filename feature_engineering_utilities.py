@@ -13,7 +13,7 @@ pd.options.display.max_columns = 500
 now = dt.datetime.now().strftime('%Y-%m-%d-%H-%M')
 result_dir = f'results/{now}/'
 print(now)
-os.makedirs(result_dir, exist_ok=True)
+# os.makedirs(result_dir, exist_ok=True)
 
 def printer(x):
     print(f'{x}\n-------------------')
@@ -573,8 +573,4 @@ def charts_data_wrapper(bin_id, d_items, df, demographic_features, i):
         hematocrit_features,
         hypertensive_features,
         blood_ph_features])
-
-if __name__ == '__main__':
-
-    main()
 
