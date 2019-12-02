@@ -128,12 +128,6 @@ def make_clean_charts_data(chartevents, d_items, label):
 
 def create_contrast_imaging_feature(cptevents):
     """cpt codes for imaging with contrast dyes"""
-    res = cptevents.loc[cptevents.cpt_cd.str.startswith('70') | 
-                        cptevents.cpt_cd.str.startswith('71') |
-                        cptevents.cpt_cd.str.startswith('72') |
-                        cptevents.cpt_cd.str.startswith('73') |
-                        cptevents.cpt_cd.str.startswith('74') |
-                        cptevents.cpt_cd.str.startswith('75')]
     radiology_cpt_codes = [
         '74177',
         '74160',
@@ -155,8 +149,8 @@ def create_contrast_imaging_feature(cptevents):
         '70548'
     ] # codes with contrast from 2019 (i know it's not the right year)
 
-    res['ft_contrast_imaging'] = res['cpt_cd'].isin(radiology_cpt_codes) * 1
-    return res.groupby('hadm_id', as_index=False)['ft_contrast_imaging'].max()
+    cptevents['ft_contrast_imaging'] = cptevents.cpt_cd.isin(radiology_cpt_codes)*1
+    return cptevents.groupby('hadm_id', as_index=False)['ft_contrast_imaging'].max()
 
 
 def add_nephrotoxin_features(prescriptions, admissions):
@@ -531,35 +525,45 @@ def read_charts_data(bin_id):
                        nrows=10**6)
 
 
-def charts_data_wrapper(bin_id, d_items, df, demographic_features):
+def charts_data_wrapper(bin_id, d_items, df, demographic_features, i):
+
+    print_me = i % 20 == 0
+    print('charts chunk: ', i)
 
     chartevents = read_charts_data(bin_id)
-    print('chartevents', chartevents.shape)
+    if print_me:
+        print('chartevents', chartevents.shape)
     charts = make_clean_charts_data(chartevents, d_items, df)
     charts = charts.drop_duplicates(['hadm_id', 'itemid', 'eventtime'])
 
-    printer('creatinine features')
     creatinine_features = create_creatinine_features(charts)
-    print(creatinine_features.shape)
+    if print_me:
+        printer('creatinine features')
+        print(creatinine_features.shape)
 
-    # printer('urine features')
-    # urine_features = create_urine_features(charts)
+    #urine_features = create_urine_features(charts)
+    #if print_me:
+    #    printer('urine features')
+    #    print(urine_features.shape)
 
-    printer('hematocrit features')
     hematocrit_features = create_hematocrit_features(charts, demographic_features)
-    print(hematocrit_features.shape)
+    if print_me:
+        printer('hematocrit features')
+        print(hematocrit_features.shape)
 
-    printer('hypertensive features')
     hypertensive_features = create_hypertensive_features(charts)
-    print(hypertensive_features.shape)
+    if print_me:
+        printer('hypertensive features')
+        print(hypertensive_features.shape)
     
-    printer('blood ph features')
     blood_ph_features = create_blood_ph_features(charts)
-    print(blood_ph_features.shape)
+    if print_me:
+        printer('blood ph features')
+        print(blood_ph_features.shape)
 
     return merge_features([
         creatinine_features,
-        # urine_features,
+        #urine_features,
         hematocrit_features,
         hypertensive_features,
         blood_ph_features])
