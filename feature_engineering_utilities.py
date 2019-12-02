@@ -524,6 +524,12 @@ def read_charts_data(bin_id):
                        dtype=str,
                        nrows=10**6)
 
+def create_mechanical_ventilation_feature(cptevents):
+    mechanical = cptevents.cpt_cd == '94003'
+    mechanical &= cptevents.description.str.lower().str.contains('invasive', na=False)
+    cptevents['ft_mechanical_ventilation'] = mechanical*1
+    return cptevents.groupby('hadm_id', as_index=False)['ft_mechanical_ventilation'].max()
+
 
 def charts_data_wrapper(bin_id, d_items, df, demographic_features, i):
 
@@ -567,77 +573,6 @@ def charts_data_wrapper(bin_id, d_items, df, demographic_features, i):
         hematocrit_features,
         hypertensive_features,
         blood_ph_features])
-
-
-def main():
-
-    icdxw = read_crosswalk()
-    diagnoses_icd = read_prod_data('diagnoses_icd')
-    admissions = read_prod_data('admissions')
-    df = add_aki_hcc_label(diagnoses_icd, icdxw, admissions)
-    hcc_labeled_data = create_hcc_labeled_dataset(diagnoses_icd, icdxw)
-
-    printer('labeled dataset')
-    print(df.sample(5))
-    print(df.shape)
-    print(df.hcc_cd_135.value_counts(normalize=True))
-    del diagnoses_icd
-    del icdxw
-
-    # create the demographic features
-    patients = read_prod_data(patients)
-    demographic_features = create_demographics_features(admissions, patients)
-    del patients
-
-    # diagnoses
-    diabetes_hcc_feature = create_hcc_feature(hcc_labeled_data, label='_19', rename_as='hcc_cd_19_dbtes_wo_comp')
-    ckd5_hcc_feature = create_hcc_feature(hcc_labeled_data, label='_136', rename_as='hcc_cd_136_ckd_stg_5')
-    ckd4_hcc_feature = create_hcc_feature(hcc_labeled_data, label='_137', rename_as='hcc_cd_137_ckd_stg_4')
-    chf_hcc_feature = create_hcc_feature(hcc_labeled_data, label='_85', rename_as='hcc_cd_85_chf')
-    vascular_disease_hcc_feature = create_hcc_feature(hcc_labeled_data, label='_108', rename_as='hcc_cd_108_vascular')
-
-    # admissions, icu stays
-    icustays = read_prod_data('icustays')
-    prior_admission_features = create_prior_admissions(admissions, icustays)
-    del icustays
-    
-    # prescription
-    prescriptions = read_prod_data('prescriptions')
-    nephrotoxin_features = add_nephrotoxin_features(prescriptions, admissions)
-    del prescriptions
-
-    # cptevents
-    cptevents = read_prod_data('cptevents')
-    contrast_imaging_feature = create_contrast_imaging_feature(cptevents)
-    del cptevents
-
-    # chart data
-    d_items = read_prod_data('d_items')
-    bins = [hex(i)[2] + c for i in range(0, 16) for c in [hex(d)[2] for d in range(0, 16)]]
-    chart_features_by_bin = [charts_data_wrapper(b, d_items,
-                                                 df, demographic_features) for b in bins]
-    chart_features_by_bin = pd.concat(chart_features, sort=False)
-
-    features = [
-        df.drop(['subject_id', 'admittime', 'dischtime'], axis=1),
-        demographic_features,
-        chart_features_by_bin,
-        diabetes_hcc_feature,
-        ckd4_hcc_feature,
-        ckd5_hcc_feature,
-        chf_hcc_feature,
-        vascular_disease_hcc_feature,
-        prior_admission_features,
-        nephrotoxin_features,
-        contrast_imaging_feature
-    ]
-
-    data = merge_features(features)
-    printer('final dataframe')
-    print(data.shape)
-    data.to_csv(result_dir + 'features.csv', index=False)
-    return 
-
 
 if __name__ == '__main__':
 

@@ -32,3 +32,4 @@ The `chartevents` table was too big for memory. I could have used the AWS Enviro
 [CMS Risk Adjustment HCC descriptions](https://www11.empireblue.com/provider/noapplication/f2/s2/t4/pw_g312847.pdf?refer=ehpprovider)
 [Medicines that can cause AKI](https://www.healthlinkbc.ca/health-topics/tv7198)
 [Physician Logic](physician_logic.pdf)
+[Contrast Dye/Kidney Link](https://www.kidney.org/atoz/content/Contrast-Dye-and-Kidneys)
