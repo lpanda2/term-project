@@ -25,6 +25,32 @@ term-project
 ### Splitting Data (split_charts_data.ipynb)
 The `chartevents` table was too big for memory. I could have used the AWS Environment (with Athena and the Sagemaker notebooks but wouldn't have been able to preserve my work easily here). I also could have used bigquery and the python pandas API for it, but it felt unnecessary. Instead, I took the largest table I needed to parse and split the data by a md5 hash of the hadm_id.
 
+# Features
+**Feature Investigation List**
+---
+- chronic liver disease
+- sepsis
+- anemia
+- potassium
+- sodium
+- medical imaging that uses contrast dyes
+
+**Done**
+- prescriptions which can be nephrotoxins
+- mechanical ventilation
+- low blood ph
+- hypertension
+- hematocrit
+- gender
+- age
+- ethnicity
+- creatinine increases
+- urine color
+- urine appearance
+- prior admission in 30, 60, 90, 120 days
+- prior micu icustay in 30 days
+- prior ccu icustay in 30 days
+
 
 # References
 [Mimic Data Dictionary](https://mimic.physionet.org/mimictables/cptevents/)
