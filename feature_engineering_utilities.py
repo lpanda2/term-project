@@ -160,8 +160,11 @@ def add_nephrotoxin_features(prescriptions, admissions):
     meds_list['antibiotics'] = ['bacitracin', 
                                 'vancomycin', 
                                 'amphotericin', 
-                                'cephalosporin', 
-                                'aminoglycoloside',
+                                'cephalexin',
+                                'cefadroxil',
+                                'tobramycin',
+                                'gentamicin',
+                                'neomycin',
                                 'ciprofloxacin']
     meds_list['blood_pressure'] = ['lisinopril', 
                                    'ramipril', 
@@ -169,8 +172,9 @@ def add_nephrotoxin_features(prescriptions, admissions):
                                    'candesartan', 
                                    'valsartan', 
                                    'warfarin']
-    meds_list['edema'] = ['furosemide']
-    meds_list['nsaid'] = ['ibuprofen', 'naproxen', 'ketoprofen']
+    meds_list['diuretic'] = ['furosemide', 'torsemide']
+    meds_list['nsaid'] = ['ibuprofen', 'naproxen']
+                          # , 'ketoprofen']
     meds_list['ulcer'] = ['cimetidine']
     meds_list['other'] = ['propofol']
 
@@ -247,6 +251,17 @@ def create_prior_admissions(admissions, icustays):
     features = [x for x in res if 'ft_' in x]
     return res.groupby('hadm_id', as_index=False)[features].max()
 
+def make_labs_data(labevents, d_labitems):
+    labs = labevents.merge(d_labitems, how='left', on='itemid')
+    labs = labs[['subject_id', 'hadm_id', 'charttime', 'value',
+                 'valuenum', 'valueuom', 'label', 'fluid', 'category', 'flag']]
+    labs['valuenum'] = pd.to_numeric(labs['valuenum'], errors='coerce')
+    labs['label'] = labs.label.str.lower()
+    labs['fluid'] = labs.fluid.str.lower()
+    labs['category'] = labs.category.str.lower()
+    labs['charttime'] = pd.to_datetime(labs.charttime)
+    labs = labs.dropna(subset=['hadm_id'])
+    return labs
 
 def create_hcc_feature(hccs, label='', rename_as=None):
     """select an hcc feature"""
@@ -273,6 +288,20 @@ def create_hcc_labeled_dataset(diagnoses, icdxw):
     cols = [x for x in merged if 'hcc_cd' in x]
     data = merged.groupby(['hadm_id', 'subject_id'], as_index=False)[cols].max()
     return data
+
+def create_sodium_feature(labs):
+    res = labs.loc[labs.label.str.lower().str.contains('sodium', na=False) &
+                   (labs.fluid == 'blood'), 
+               ['hadm_id', 'charttime', 'label', 'value', 'valuenum']]
+    res['ft_low_sodium'] = res.valuenum < 136
+    return res.groupby('hadm_id', as_index=False)['ft_low_sodium'].max()
+
+def create_potassium_feature(labs):
+    res = labs.loc[labs.label.str.lower().str.contains('potassium', na=False) &
+                   (labs.fluid == 'blood'), 
+               ['hadm_id', 'charttime', 'label', 'value', 'valuenum']]
+    res['ft_high_potassium'] = res.valuenum > 5
+    return res.groupby('hadm_id', as_index=False)['ft_high_potassium'].max()
 
 
 def create_blood_ph_features(charts):
@@ -331,9 +360,23 @@ def create_demographics_features(admissions, patients):
                            pd.get_dummies(pt['ethnicity'], 
                                             prefix='ft_race')], axis=1)
     
+    combine_these = ['ft_race_patient_declined_to_answer',
+                     'ft_race_unable_to_be_obtained',
+                     'ft_race_unknown_not_specified']
+    combine_if_there = [x for x in combine_these if x in ethnicity]
+    ethnicity['ft_race_missing_info'] = ethnicity[combine_if_there].max(axis=1)
+    ethnicity = ethnicity.drop(combine_if_there, axis=1)
+    
     data = pt[['hadm_id', 'ft_age', 'ft_gender']].merge(admit_type, 
-                                                        how='left', on='hadm_id')
+                                                        how='left',
+                                                        on='hadm_id')
+    data = data.merge(ethnicity, how='left', on='hadm_id')    
+    
+    data = pt[['hadm_id', 'ft_age', 'ft_gender']].merge(admit_type, 
+                                                        how='left',
+                                                        on='hadm_id')
     data = data.merge(ethnicity, how='left', on='hadm_id')
+    
     agg_dict = {'ft_age': 'mean', 'ft_gender': 'first'}
     agg_dict.update({k:'max' for k in admit_type if k != 'hadm_id'})
     agg_dict.update({k:'max' for k in ethnicity if k != 'hadm_id'})
@@ -341,8 +384,8 @@ def create_demographics_features(admissions, patients):
     return data.groupby('hadm_id', as_index=False).agg(agg_dict)
 
 
-def create_hypertensive_features(charts):
-    """check the hypertensive status"""
+def create_blood_pressure_features(charts):
+    """check the hypertensive & hypotensive status"""
     res = charts.loc[charts.label.str.lower().str.contains('diastolic', na=False), 
                      ['hadm_id', 'eventtime', 'admittime', 'label', 
                       'value', 'valuenum', 'unitname']]
@@ -363,6 +406,7 @@ def create_hypertensive_features(charts):
     data = res2.merge(res, how='outer', on=['hadm_id', 'eventtime'], indicator=True, 
                  suffixes=['_systolic', '_diastolic'])
     data = data.loc[data._merge == 'both'].drop('_merge', axis=1)
+
     
     # delete stuff to clear memory
     del res
@@ -370,6 +414,7 @@ def create_hypertensive_features(charts):
     
     # make features
     elevated = data.valuenum_systolic.between(120, 129) & data.valuenum_diastolic.lt(80)
+    abnormally_low = data.valuenum_systolic.lt(119) & data.valuenum_diastolic.lt(79)
     hbp_stg_1 = data.valuenum_systolic.between(130, 139) | data.valuenum_diastolic.between(80, 89)
     hbp_stg_2 = data.valuenum_systolic.between(140, 179) | data.valuenum_diastolic.between(90, 119)
     crisis = data.valuenum_systolic.gt(180) | data.valuenum_diastolic.gt(120)
@@ -381,6 +426,7 @@ def create_hypertensive_features(charts):
         return data.time_delta < pd.Timedelta(x, 'hr')
     
     data['ft_elevated_bp'] = elevated*1
+    data['ft_abnormally_low_bp'] = abnormally_low*1
     data['ft_hbp_stg_1'] = hbp_stg_1*1
     data['ft_hbp_stg_2'] = hbp_stg_2*1
     data['ft_hbp_crisis'] = crisis*1
@@ -530,6 +576,13 @@ def create_mechanical_ventilation_feature(cptevents):
     cptevents['ft_mechanical_ventilation'] = mechanical*1
     return cptevents.groupby('hadm_id', as_index=False)['ft_mechanical_ventilation'].max()
 
+def create_anemia_feature(labs):
+    res = labs.loc[(labs.label == 'iron') &
+                   (labs.fluid == 'blood'), 
+               ['hadm_id', 'charttime', 'label', 'value', 'valuenum']]
+    res['ft_anemic'] = res.valuenum < 50
+    return res.groupby('hadm_id', as_index=False)['ft_anemic'].max()  
+
 
 def charts_data_wrapper(bin_id, d_items, df, demographic_features, i):
 
@@ -557,7 +610,7 @@ def charts_data_wrapper(bin_id, d_items, df, demographic_features, i):
         printer('hematocrit features')
         print(hematocrit_features.shape)
 
-    hypertensive_features = create_hypertensive_features(charts)
+    hypertensive_features = create_blood_pressure_features(charts)
     if print_me:
         printer('hypertensive features')
         print(hypertensive_features.shape)
