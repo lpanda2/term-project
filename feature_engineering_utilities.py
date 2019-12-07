@@ -35,7 +35,7 @@ def read_all_dev_data():
     for fname in [x for x in os.listdir(datadir) if '.csv' in x]:    
         read_dev_data(fname)
    
- 
+
 def read_prod_data(table_name, chunksize=None):
     if chunksize:
         data = '1'
@@ -267,7 +267,7 @@ def create_hcc_feature(hccs, label='', rename_as=None):
     """select an hcc feature"""
     cols = [x for x in hccs if 'hcc_' in x]
     if label:
-        drop_cols = [x for x in cols if label not in x]
+        drop_cols = [x for x in cols if x != 'hcc_cd' + label]
         hccs = hccs.drop(drop_cols, axis=1)
     
     if rename_as:
@@ -293,14 +293,14 @@ def create_sodium_feature(labs):
     res = labs.loc[labs.label.str.lower().str.contains('sodium', na=False) &
                    (labs.fluid == 'blood'), 
                ['hadm_id', 'charttime', 'label', 'value', 'valuenum']]
-    res['ft_low_sodium'] = res.valuenum < 136
+    res['ft_low_sodium'] = (res.valuenum < 136) * 1
     return res.groupby('hadm_id', as_index=False)['ft_low_sodium'].max()
 
 def create_potassium_feature(labs):
     res = labs.loc[labs.label.str.lower().str.contains('potassium', na=False) &
                    (labs.fluid == 'blood'), 
                ['hadm_id', 'charttime', 'label', 'value', 'valuenum']]
-    res['ft_high_potassium'] = res.valuenum > 5
+    res['ft_high_potassium'] = (res.valuenum > 5) * 1
     return res.groupby('hadm_id', as_index=False)['ft_high_potassium'].max()
 
 
@@ -510,19 +510,22 @@ def create_creatinine_features(charts, test=False):
     res['ft_creatinine_increase_from_baseline'] = (res.valuenum >= 1.5*res.baseline_creat)*1
     res['ft_baseline_creat_gt_1'] = (res.baseline_creat > 1) * 1
     res['ft_avg_creatinine'] = res.valuenum
+    res['ft_baseline_creatinine'] = res.baseline_creat
 
     if test:
         return res.loc[res.groupby('hadm_id')['ft_creatinine_increase_within_48'].transform('max') == 1, 
                         ['hadm_id', 'valuenum', 'delta', 'delta_time',
-                         'baseline_creat', 
+                         'baseline_creat',
                          'ft_creatinine_increase_within_48', 
                          'ft_creatinine_increase_from_baseline',
                          'ft_baseline_creat_gt_1']]
     
     features = [x for x in res if 'ft_' in x]
-    return res.groupby('hadm_id', as_index=False)[features].agg({'ft_creatinine_increase_within_48': 'max',
+    return res.groupby('hadm_id', as_index=False).agg({
+                    'ft_creatinine_increase_within_48': 'max',
                     'ft_creatinine_increase_from_baseline': 'max',
                     'ft_baseline_creat_gt_1': 'max',
+                    'ft_baseline_creatinine': 'mean',
                     'ft_avg_creatinine': 'mean'})
 
 
@@ -626,4 +629,11 @@ def charts_data_wrapper(bin_id, d_items, df, demographic_features, i):
         hematocrit_features,
         hypertensive_features,
         blood_ph_features])
+
+def make_bar(data):
+    ax = data.hcc_cd_135.hist(grid=False, bins=3)
+    ax.set_xticks([0, 1])
+    ax.set_xticklabels([0,1])
+    ax.bar(data.hcc_cd_135.value_counts().index, 
+           data.hcc_cd_135.value_counts().values, 0.5, align='center')
 
