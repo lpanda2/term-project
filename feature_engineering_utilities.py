@@ -325,8 +325,18 @@ def create_blood_ph_features(charts):
     res['ft_low_blood_ph_within_36_hrs'] = (lowbloodph & within_x_hours(res, 36))*1
     res['ft_low_blood_ph_within_48_hrs'] = (lowbloodph & within_x_hours(res, 48))*1
     
-    features = [x for x in res if 'ft_' in x]
-    return res.groupby('hadm_id', as_index=False)[features].max()
+    lb_features = [x for x in res if 'ft_' in x]
+    feature_agg = {k:'max' for k in lb_features}
+    for i in lb_features:
+        mask = res[i] == 1
+        i_new = i.replace('ft_', 'ft_avg_')
+        res[i_new] = np.where(i, res['valuenum'], np.nan)
+        feature_agg[i_new] = 'mean'
+    
+    res['ft_blood_ph'] = res.valuenum.copy(deep=True)
+    feature_agg['ft_blood_ph'] = 'mean'
+    
+    return res.groupby('hadm_id', as_index=False).agg(feature_agg)
 
 
 def create_demographics_features(admissions, patients):
